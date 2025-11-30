@@ -18,9 +18,12 @@ Run: python cleaner_bot.py
 import os
 import sqlite3
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from functools import wraps
 import re
 import logging
 import asyncio
+
 
 from telegram import Update
 from telegram.ext import (
@@ -28,11 +31,35 @@ from telegram.ext import (
     ConversationHandler, MessageHandler, filters
 )
 
+
+def restricted(func):
+    @wraps(func)
+    async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user = update.effective_user
+        if not user:
+            return
+        username = (user.username or "").lower()
+        if username not in ALLOWED_USERS:
+            if update.message:
+                await update.message.reply_text("Access denied.")
+            elif update.callback_query:
+                await update.callback_query.answer("Access denied.", show_alert=True)
+            return
+        return await func(update, context, *args, **kwargs)
+    return wrapped
+
 # ----------------------
 # Configuration
 # ----------------------
+load_dotenv()  # Load variables from .env
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "<PASTE_YOUR_TOKEN_HERE>"
+if not TOKEN:
+    raise RuntimeError("TELEGRAM_BOT_TOKEN not found. Please set it in your .env file.")
+
 DB_PATH = "tasks.db"
+
+allowed = os.getenv("ALLOWED_USERNAMES", "")
+ALLOWED_USERS = {u.strip().lower() for u in allowed.split(",") if u.strip()}
 # ----------------------
 
 logging.basicConfig(
@@ -172,6 +199,7 @@ def format_task_row(row):
 # ----------------------
 # Bot handlers
 # ----------------------
+@restricted
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = (
         "Cleaning Bot — minimal command interface.\n\n"
@@ -187,16 +215,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(txt)
 
 # ---- Add task conversation ----
+@restricted
 async def addtask_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("What's the task name? (e.g. Clean bathroom)")
     return ADD_NAME
 
+@restricted
 async def addtask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     context.user_data["new_task_name"] = text
     await update.message.reply_text("How often? (e.g. 3d, 1w, 1m — or number of days)")
     return ADD_FREQ
 
+@restricted
 async def addtask_freq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     freq_txt = update.message.text.strip()
     try:
@@ -211,6 +242,7 @@ async def addtask_freq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ---- List tasks ----
+@restricted
 async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = list_tasks_db()
     if not rows:
@@ -222,6 +254,7 @@ async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 # ---- Due tasks ----
+@restricted
 async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     due = tasks_due_now()
     if not due:
@@ -234,6 +267,7 @@ async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 # ---- Done command ----
+@restricted
 async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # If user provided id with command: use it
     args = context.args
@@ -261,6 +295,7 @@ async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
     return DONE_WAIT_ID
 
+@restricted
 async def done_receive_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = update.message.text.strip()
     try:
@@ -277,6 +312,7 @@ async def done_receive_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ---- Remove ----
+@restricted
 async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
@@ -295,6 +331,7 @@ async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Removed task {tid}: {row[1]}")
 
 # ---- Edit conversation ----
+@restricted
 async def edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rows = list_tasks_db()
     if not rows:
@@ -306,6 +343,7 @@ async def edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
     return EDIT_SELECT
 
+@restricted
 async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     txt = update.message.text.strip()
     try:
@@ -321,6 +359,7 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("What do you want to edit? Reply with 'name', 'frequency' or 'notes'.")
     return EDIT_FIELD
 
+@restricted
 async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text.strip().lower()
     if choice not in ("name", "frequency", "notes"):
@@ -330,6 +369,7 @@ async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Send the new value for {choice}.")
     return EDIT_NEWVAL
 
+@restricted
 async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     newval = update.message.text.strip()
     tid = context.user_data.get("edit_id")
@@ -351,6 +391,7 @@ async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 # ---- Cancel handler ----
+@restricted
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
