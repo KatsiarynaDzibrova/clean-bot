@@ -27,14 +27,20 @@ import asyncio
 
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes,
-    ConversationHandler, MessageHandler, filters
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
 )
 
 
 def restricted(func):
     @wraps(func)
-    async def wrapped(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+    async def wrapped(
+        update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs
+    ):
         user = update.effective_user
         if not user:
             return
@@ -46,7 +52,9 @@ def restricted(func):
                 await update.callback_query.answer("Access denied.", show_alert=True)
             return
         return await func(update, context, *args, **kwargs)
+
     return wrapped
+
 
 # ----------------------
 # Configuration
@@ -63,7 +71,7 @@ ALLOWED_USERS = {u.strip().lower() for u in allowed.split(",") if u.strip()}
 # ----------------------
 
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
@@ -72,13 +80,15 @@ ADD_NAME, ADD_FREQ = range(2)
 EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL = range(3)
 DONE_WAIT_ID = range(1)
 
+
 # ----------------------
 # DB helpers
 # ----------------------
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
     CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -86,41 +96,56 @@ def init_db():
         last_done TEXT NOT NULL,
         notes TEXT
     )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
+
 
 def add_task_db(name: str, freq_days: int, notes: str = ""):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     now_iso = datetime.utcnow().isoformat()
-    cur.execute("INSERT INTO tasks (name, frequency_days, last_done, notes) VALUES (?, ?, ?, ?)",
-                (name, freq_days, now_iso, notes))
+    cur.execute(
+        "INSERT INTO tasks (name, frequency_days, last_done, notes) VALUES (?, ?, ?, ?)",
+        (name, freq_days, now_iso, notes),
+    )
     conn.commit()
     conn.close()
+
 
 def list_tasks_db():
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT id, name, frequency_days, last_done, notes FROM tasks ORDER BY id")
+    cur.execute(
+        "SELECT id, name, frequency_days, last_done, notes FROM tasks ORDER BY id"
+    )
     rows = cur.fetchall()
     conn.close()
     return rows
 
+
 def get_task_db(task_id: int):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("SELECT id, name, frequency_days, last_done, notes FROM tasks WHERE id = ?", (task_id,))
+    cur.execute(
+        "SELECT id, name, frequency_days, last_done, notes FROM tasks WHERE id = ?",
+        (task_id,),
+    )
     row = cur.fetchone()
     conn.close()
     return row
 
+
 def update_task_last_done(task_id: int, when: datetime):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute("UPDATE tasks SET last_done = ? WHERE id = ?", (when.isoformat(), task_id))
+    cur.execute(
+        "UPDATE tasks SET last_done = ? WHERE id = ?", (when.isoformat(), task_id)
+    )
     conn.commit()
     conn.close()
+
 
 def update_task_field(task_id: int, field: str, value):
     if field not in ("name", "frequency_days", "notes"):
@@ -131,12 +156,14 @@ def update_task_field(task_id: int, field: str, value):
     conn.commit()
     conn.close()
 
+
 def remove_task_db(task_id: int):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
     conn.commit()
     conn.close()
+
 
 # ----------------------
 # Helper utilities
@@ -174,12 +201,16 @@ def parse_frequency_to_days(text: str) -> int:
             return num * 7
         if unit == "m":
             return num * 30
-    raise ValueError("Could not parse frequency. Use e.g. '3d', '1w', '1m' or a number of days.")
+    raise ValueError(
+        "Could not parse frequency. Use e.g. '3d', '1w', '1m' or a number of days."
+    )
+
 
 def next_due_text(last_done_iso: str, freq_days: int) -> (datetime, str):
     last = datetime.fromisoformat(last_done_iso)
     nd = last + timedelta(days=freq_days)
     return nd, nd.strftime("%Y-%m-%d %H:%M UTC")
+
 
 def tasks_due_now():
     now = datetime.utcnow()
@@ -191,10 +222,14 @@ def tasks_due_now():
             due.append((tid, name, freq, last_iso, notes, nd))
     return due
 
+
 def format_task_row(row):
     tid, name, freq, last_iso, notes = row
     nd, nd_text = next_due_text(last_iso, freq)
-    return f"{tid}. {name} — every {freq}d — next due: {nd_text}" + (f" — {notes}" if notes else "")
+    return f"{tid}. {name} — every {freq}d — next due: {nd_text}" + (
+        f" — {notes}" if notes else ""
+    )
+
 
 # ----------------------
 # Bot handlers
@@ -214,11 +249,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(txt)
 
+
 # ---- Add task conversation ----
 @restricted
 async def addtask_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("What's the task name? (e.g. Clean bathroom)")
     return ADD_NAME
+
 
 @restricted
 async def addtask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,19 +264,23 @@ async def addtask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("How often? (e.g. 3d, 1w, 1m — or number of days)")
     return ADD_FREQ
 
+
 @restricted
 async def addtask_freq(update: Update, context: ContextTypes.DEFAULT_TYPE):
     freq_txt = update.message.text.strip()
     try:
         freq_days = parse_frequency_to_days(freq_txt)
     except ValueError as e:
-        await update.message.reply_text("I couldn't parse that. Use examples like '3d', '1w', '1m' or '7'. Try /addtask again.")
+        await update.message.reply_text(
+            "I couldn't parse that. Use examples like '3d', '1w', '1m' or '7'. Try /addtask again."
+        )
         return ConversationHandler.END
     name = context.user_data.get("new_task_name")
     add_task_db(name, freq_days)
     await update.message.reply_text(f"Added: {name} — every {freq_days} days.")
     context.user_data.pop("new_task_name", None)
     return ConversationHandler.END
+
 
 # ---- List tasks ----
 @restricted
@@ -253,6 +294,7 @@ async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(format_task_row(r))
     await update.message.reply_text("\n".join(lines))
 
+
 # ---- Due tasks ----
 @restricted
 async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -261,10 +303,11 @@ async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("No tasks are due right now. Good job!")
         return
     lines = ["Tasks to do now:"]
-    for (tid, name, freq, last_iso, notes, nd) in due:
+    for tid, name, freq, last_iso, notes, nd in due:
         lines.append(f"{tid}. {name} — every {freq}d")
     lines.append("\nMark a task done with /done <id>")
     await update.message.reply_text("\n".join(lines))
+
 
 # ---- Done command ----
 @restricted
@@ -282,7 +325,9 @@ async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"No task with id {tid}.")
             return
         update_task_last_done(tid, datetime.utcnow())
-        await update.message.reply_text(f"Marked done: {row[1]}. Next due in {row[2]} days.")
+        await update.message.reply_text(
+            f"Marked done: {row[1]}. Next due in {row[2]} days."
+        )
         return
     # else ask for id
     rows = list_tasks_db()
@@ -294,6 +339,7 @@ async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(format_task_row(r))
     await update.message.reply_text("\n".join(lines))
     return DONE_WAIT_ID
+
 
 @restricted
 async def done_receive_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -308,8 +354,11 @@ async def done_receive_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"No task with id {tid}.")
         return ConversationHandler.END
     update_task_last_done(tid, datetime.utcnow())
-    await update.message.reply_text(f"Marked done: {row[1]}. Next due in {row[2]} days.")
+    await update.message.reply_text(
+        f"Marked done: {row[1]}. Next due in {row[2]} days."
+    )
     return ConversationHandler.END
+
 
 # ---- Remove ----
 @restricted
@@ -330,6 +379,7 @@ async def remove_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remove_task_db(tid)
     await update.message.reply_text(f"Removed task {tid}: {row[1]}")
 
+
 # ---- Edit conversation ----
 @restricted
 async def edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -342,6 +392,7 @@ async def edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(format_task_row(r))
     await update.message.reply_text("\n".join(lines))
     return EDIT_SELECT
+
 
 @restricted
 async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -356,8 +407,11 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"No task with id {tid}.")
         return ConversationHandler.END
     context.user_data["edit_id"] = tid
-    await update.message.reply_text("What do you want to edit? Reply with 'name', 'frequency' or 'notes'.")
+    await update.message.reply_text(
+        "What do you want to edit? Reply with 'name', 'frequency' or 'notes'."
+    )
     return EDIT_FIELD
+
 
 @restricted
 async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -369,6 +423,7 @@ async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Send the new value for {choice}.")
     return EDIT_NEWVAL
 
+
 @restricted
 async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     newval = update.message.text.strip()
@@ -378,7 +433,9 @@ async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             freq_days = parse_frequency_to_days(newval)
         except ValueError:
-            await update.message.reply_text("Could not parse frequency. Use '3d', '1w', '1m' or days like '7'.")
+            await update.message.reply_text(
+                "Could not parse frequency. Use '3d', '1w', '1m' or days like '7'."
+            )
             return ConversationHandler.END
         update_task_field(tid, "frequency_days", freq_days)
         await update.message.reply_text(f"Updated frequency to every {freq_days} days.")
@@ -390,11 +447,13 @@ async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.pop("edit_field", None)
     return ConversationHandler.END
 
+
 # ---- Cancel handler ----
 @restricted
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
+
 
 # ----------------------
 # Main
@@ -402,7 +461,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     init_db()
     if TOKEN.startswith("<PASTE"):
-        print("Please set your bot token in TELEGRAM_BOT_TOKEN env var or paste it into the script.")
+        print(
+            "Please set your bot token in TELEGRAM_BOT_TOKEN env var or paste it into the script."
+        )
         return
 
     app = ApplicationBuilder().token(TOKEN).build()
@@ -427,7 +488,11 @@ def main():
     # done conversation (for interactive id entry)
     done_conv = ConversationHandler(
         entry_points=[CommandHandler("done", done_start)],
-        states={DONE_WAIT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, done_receive_id)]},
+        states={
+            DONE_WAIT_ID: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, done_receive_id)
+            ]
+        },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_user=True,
     )
@@ -448,6 +513,7 @@ def main():
     # start polling
     logger.info("Bot started. Polling...")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
