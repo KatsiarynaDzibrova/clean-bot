@@ -51,7 +51,7 @@ def next_due_text(last_done_iso: str, freq_days: int) -> tuple[datetime, str]:
     """Calculate next due date and formatted string."""
     last = datetime.fromisoformat(last_done_iso)
     nd = last + timedelta(days=freq_days)
-    return nd, nd.strftime("%Y-%m-%d %H:%M UTC")
+    return nd, nd.strftime("%Y-%m-%d")
 
 
 def tasks_due_now(room: str = None):
