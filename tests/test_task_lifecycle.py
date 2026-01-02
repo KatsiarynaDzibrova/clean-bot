@@ -19,16 +19,17 @@ class TestTaskLifecycle:
         from src.database import add_task_db, get_task_db, list_tasks_db
 
         # Create a task
-        add_task_db("Clean bathroom", freq_days=1, notes="Daily cleaning")
+        add_task_db("Clean bathroom", freq_days=1, room="Bathroom", notes="Daily cleaning")
 
         # Verify task exists in database
         tasks = list_tasks_db()
         assert len(tasks) == 1
 
         task = tasks[0]
-        tid, name, freq, last_done, notes = task
+        tid, name, freq, last_done, room, notes = task
         assert name == "Clean bathroom"
         assert freq == 1
+        assert room == "Bathroom"
         assert notes == "Daily cleaning"
 
         # Verify we can get task by ID
@@ -48,7 +49,7 @@ class TestTaskLifecycle:
         from src.utils import tasks_due_now
 
         # Create a daily task
-        add_task_db("Clean kitchen", freq_days=1)
+        add_task_db("Clean kitchen", freq_days=1, room="Kitchen")
 
         # Task should NOT be due yet (just created)
         due_tasks = tasks_due_now()
@@ -62,7 +63,7 @@ class TestTaskLifecycle:
         from src.utils import tasks_due_now
 
         # Create a daily task
-        add_task_db("Vacuum floor", freq_days=1)
+        add_task_db("Vacuum floor", freq_days=1, room="Living Room")
 
         # Get the task ID
         tasks = list_tasks_db()
@@ -85,7 +86,7 @@ class TestTaskLifecycle:
         from src.utils import tasks_due_now
 
         # Create a daily task
-        add_task_db("Wipe counters", freq_days=1)
+        add_task_db("Wipe counters", freq_days=1, room="Kitchen")
 
         # Get the task ID
         tasks = list_tasks_db()
@@ -122,7 +123,7 @@ class TestTaskLifecycle:
         from src.utils import tasks_due_now
 
         # Step 1: Create a daily task
-        add_task_db("Daily dusting", freq_days=1)
+        add_task_db("Daily dusting", freq_days=1, room="Living Room")
         tasks = list_tasks_db()
         assert len(tasks) == 1
         task_id = tasks[0][0]
@@ -165,9 +166,9 @@ class TestMultipleTasks:
         from src.utils import tasks_due_now
 
         # Create multiple tasks with different frequencies
-        add_task_db("Daily task", freq_days=1)
-        add_task_db("Weekly task", freq_days=7)
-        add_task_db("Monthly task", freq_days=30)
+        add_task_db("Daily task", freq_days=1, room="Kitchen")
+        add_task_db("Weekly task", freq_days=7, room="Bathroom")
+        add_task_db("Monthly task", freq_days=30, room="Bedroom")
 
         tasks = list_tasks_db()
         # Find tasks by name instead of assuming position (IDs are random)
@@ -202,8 +203,8 @@ class TestMultipleTasks:
         from src.utils import tasks_due_now
 
         # Create two tasks
-        add_task_db("Task A", freq_days=1)
-        add_task_db("Task B", freq_days=1)
+        add_task_db("Task A", freq_days=1, room="Kitchen")
+        add_task_db("Task B", freq_days=1, room="Kitchen")
 
         tasks = list_tasks_db()
         # Find tasks by name instead of assuming position (IDs are random)
@@ -239,7 +240,7 @@ class TestTaskRemoval:
         from src.database import add_task_db, get_task_db, list_tasks_db, remove_task_db
 
         # Create a task
-        add_task_db("Task to remove", freq_days=1)
+        add_task_db("Task to remove", freq_days=1, room="Kitchen")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 
@@ -261,7 +262,7 @@ class TestTaskRemoval:
         from src.utils import tasks_due_now
 
         # Create and make task overdue
-        add_task_db("Task to delete", freq_days=1)
+        add_task_db("Task to delete", freq_days=1, room="Kitchen")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 
@@ -331,7 +332,7 @@ class TestRandomIds:
 
         # Create several tasks
         for i in range(10):
-            add_task_db(f"Task {i}", freq_days=1)
+            add_task_db(f"Task {i}", freq_days=1, room="Kitchen")
 
         tasks = list_tasks_db()
         ids = [t[0] for t in tasks]
@@ -350,14 +351,14 @@ class TestRandomIds:
         cur = db_connection.cursor()
         for i in range(100, 1000):
             cur.execute(
-                "INSERT INTO tasks (id, name, frequency_days, last_done, notes) VALUES (?, ?, ?, ?, ?)",
-                (i, f"Task {i}", 1, "2024-01-01T00:00:00", ""),
+                "INSERT INTO tasks (id, name, frequency_days, last_done, room, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                (i, f"Task {i}", 1, "2024-01-01T00:00:00", "Kitchen", ""),
             )
         db_connection.commit()
 
         # Attempting to add another task should raise RuntimeError
         with pytest.raises(RuntimeError, match="Could not generate unique ID"):
-            add_task_db("One more task", freq_days=1)
+            add_task_db("One more task", freq_days=1, room="Kitchen")
 
 
 class TestTaskEditing:
@@ -369,7 +370,7 @@ class TestTaskEditing:
 
         from src.database import add_task_db, get_task_db, list_tasks_db, update_task_field
 
-        add_task_db("Original name", freq_days=1)
+        add_task_db("Original name", freq_days=1, room="Kitchen")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 
@@ -384,7 +385,7 @@ class TestTaskEditing:
 
         from src.database import add_task_db, get_task_db, list_tasks_db, update_task_field
 
-        add_task_db("Some task", freq_days=1)
+        add_task_db("Some task", freq_days=1, room="Kitchen")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 
@@ -399,14 +400,14 @@ class TestTaskEditing:
 
         from src.database import add_task_db, get_task_db, list_tasks_db, update_task_field
 
-        add_task_db("Task with notes", freq_days=1, notes="Original notes")
+        add_task_db("Task with notes", freq_days=1, room="Kitchen", notes="Original notes")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 
         update_task_field(task_id, "notes", "Updated notes")
 
         task = get_task_db(task_id)
-        assert task[4] == "Updated notes"
+        assert task[5] == "Updated notes"
 
     def test_edit_invalid_field_raises_error(self, test_db, monkeypatch):
         """Test that editing an invalid field raises ValueError."""
@@ -414,7 +415,7 @@ class TestTaskEditing:
 
         from src.database import add_task_db, list_tasks_db, update_task_field
 
-        add_task_db("Test task", freq_days=1)
+        add_task_db("Test task", freq_days=1, room="Kitchen")
         tasks = list_tasks_db()
         task_id = tasks[0][0]
 

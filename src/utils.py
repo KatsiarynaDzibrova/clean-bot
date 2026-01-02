@@ -54,22 +54,22 @@ def next_due_text(last_done_iso: str, freq_days: int) -> tuple[datetime, str]:
     return nd, nd.strftime("%Y-%m-%d %H:%M UTC")
 
 
-def tasks_due_now():
-    """Get all tasks that are currently due (overdue)."""
+def tasks_due_now(room: str = None):
+    """Get all tasks that are currently due (overdue), optionally filtered by room."""
     now = datetime.utcnow()
     due = []
-    for row in list_tasks_db():
-        tid, name, freq, last_iso, notes = row
+    for row in list_tasks_db(room=room):
+        tid, name, freq, last_iso, task_room, notes = row
         nd, nd_text = next_due_text(last_iso, freq)
         if nd <= now:
-            due.append((tid, name, freq, last_iso, notes, nd))
+            due.append((tid, name, freq, last_iso, task_room, notes, nd))
     return due
 
 
 def format_task_row(row):
     """Format a task row for display."""
-    tid, name, freq, last_iso, notes = row
+    tid, name, freq, last_iso, room, notes = row
     nd, nd_text = next_due_text(last_iso, freq)
-    return f"{tid}. {name} — every {freq}d — next due: {nd_text}" + (
+    return f"{tid}. {name} — {room} — every {freq}d — next due: {nd_text}" + (
         f" — {notes}" if notes else ""
     )

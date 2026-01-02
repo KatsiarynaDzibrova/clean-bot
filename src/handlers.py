@@ -5,7 +5,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
-from .config import ADD_NAME, ADD_FREQ, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID
+from .config import ADD_NAME, ADD_ROOM, ADD_FREQ, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID, get_rooms
 from .database import (
     add_task_db,
     list_tasks_db,

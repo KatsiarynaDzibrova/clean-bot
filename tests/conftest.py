@@ -27,6 +27,7 @@ def test_db(monkeypatch):
             name TEXT NOT NULL,
             frequency_days INTEGER NOT NULL,
             last_done TEXT NOT NULL,
+            room TEXT NOT NULL,
             notes TEXT
         )
         """

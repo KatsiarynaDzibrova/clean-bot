@@ -33,6 +33,7 @@ def init_db():
         name TEXT NOT NULL,
         frequency_days INTEGER NOT NULL,
         last_done TEXT NOT NULL,
+        room TEXT NOT NULL,
         notes TEXT
     )
     """
@@ -41,27 +42,33 @@ def init_db():
     conn.close()
 
 
-def add_task_db(name: str, freq_days: int, notes: str = ""):
+def add_task_db(name: str, freq_days: int, room: str, notes: str = ""):
     """Insert a new task with a random 3-digit ID."""
     task_id = _generate_unique_id()
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     now_iso = datetime.utcnow().isoformat()
     cur.execute(
-        "INSERT INTO tasks (id, name, frequency_days, last_done, notes) VALUES (?, ?, ?, ?, ?)",
-        (task_id, name, freq_days, now_iso, notes),
+        "INSERT INTO tasks (id, name, frequency_days, last_done, room, notes) VALUES (?, ?, ?, ?, ?, ?)",
+        (task_id, name, freq_days, now_iso, room, notes),
     )
     conn.commit()
     conn.close()
 
 
-def list_tasks_db():
-    """Fetch all tasks ordered by id."""
+def list_tasks_db(room: str = None):
+    """Fetch all tasks ordered by id, optionally filtered by room."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
-    cur.execute(
-        "SELECT id, name, frequency_days, last_done, notes FROM tasks ORDER BY id"
-    )
+    if room:
+        cur.execute(
+            "SELECT id, name, frequency_days, last_done, room, notes FROM tasks WHERE room = ? ORDER BY id",
+            (room,),
+        )
+    else:
+        cur.execute(
+            "SELECT id, name, frequency_days, last_done, room, notes FROM tasks ORDER BY id"
+        )
     rows = cur.fetchall()
     conn.close()
     return rows
@@ -72,7 +79,7 @@ def get_task_db(task_id: int):
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
-        "SELECT id, name, frequency_days, last_done, notes FROM tasks WHERE id = ?",
+        "SELECT id, name, frequency_days, last_done, room, notes FROM tasks WHERE id = ?",
         (task_id,),
     )
     row = cur.fetchone()
@@ -93,7 +100,7 @@ def update_task_last_done(task_id: int, when: datetime):
 
 def update_task_field(task_id: int, field: str, value):
     """Update a specific field of a task."""
-    if field not in ("name", "frequency_days", "notes"):
+    if field not in ("name", "frequency_days", "room", "notes"):
         raise ValueError("Invalid field")
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()

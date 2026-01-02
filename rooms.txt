@@ -1,0 +1,4 @@
+Bathroom
+Kitchen
+Bedroom
+House
