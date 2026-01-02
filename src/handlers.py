@@ -134,7 +134,7 @@ async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     header = f"Tasks in {room_filter}:" if room_filter else "Your cleaning tasks:"
     lines = [header]
     for r in rows:
-        lines.append(format_task_row(r))
+        lines.append(format_task_row(r, show_room=not room_filter))
     await update.message.reply_text("\n".join(lines))
 
 

@@ -66,10 +66,15 @@ def tasks_due_now(room: str = None):
     return due
 
 
-def format_task_row(row):
+def format_task_row(row, show_room=True):
     """Format a task row for display."""
     tid, name, freq, last_iso, room, notes = row
     nd, nd_text = next_due_text(last_iso, freq)
-    return f"{tid}. {name} — {room} — every {freq}d — next due: {nd_text}" + (
-        f" — {notes}" if notes else ""
-    )
+    if show_room:
+        return f"{tid}. {name} — {room} — every {freq}d — next due: {nd_text}" + (
+            f" — {notes}" if notes else ""
+        )
+    else:
+        return f"{tid}. {name} — every {freq}d — next due: {nd_text}" + (
+            f" — {notes}" if notes else ""
+        )

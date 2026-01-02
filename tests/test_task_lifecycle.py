@@ -361,6 +361,92 @@ class TestRandomIds:
             add_task_db("One more task", freq_days=1, room="Kitchen")
 
 
+class TestRooms:
+    """Tests for room functionality."""
+
+    def test_create_task_with_room(self, test_db, monkeypatch):
+        """Test that tasks are created with the correct room."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, get_task_db, list_tasks_db
+
+        add_task_db("Clean sink", freq_days=1, room="Kitchen")
+        tasks = list_tasks_db()
+        assert len(tasks) == 1
+
+        task = tasks[0]
+        tid, name, freq, last_done, room, notes = task
+        assert room == "Kitchen"
+
+    def test_filter_tasks_by_room(self, test_db, monkeypatch):
+        """Test that list_tasks_db filters by room correctly."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, list_tasks_db
+
+        add_task_db("Clean sink", freq_days=1, room="Kitchen")
+        add_task_db("Clean toilet", freq_days=1, room="Bathroom")
+        add_task_db("Clean stove", freq_days=7, room="Kitchen")
+
+        # All tasks
+        all_tasks = list_tasks_db()
+        assert len(all_tasks) == 3
+
+        # Kitchen only
+        kitchen_tasks = list_tasks_db(room="Kitchen")
+        assert len(kitchen_tasks) == 2
+        assert all(t[4] == "Kitchen" for t in kitchen_tasks)
+
+        # Bathroom only
+        bathroom_tasks = list_tasks_db(room="Bathroom")
+        assert len(bathroom_tasks) == 1
+        assert bathroom_tasks[0][4] == "Bathroom"
+
+    def test_filter_due_tasks_by_room(self, test_db, monkeypatch):
+        """Test that tasks_due_now filters by room correctly."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from datetime import datetime, timedelta
+        from src.database import add_task_db, list_tasks_db, update_task_last_done
+        from src.utils import tasks_due_now
+
+        add_task_db("Clean sink", freq_days=1, room="Kitchen")
+        add_task_db("Clean toilet", freq_days=1, room="Bathroom")
+
+        tasks = list_tasks_db()
+        task_map = {t[4]: t[0] for t in tasks}  # room -> id
+
+        # Make both tasks overdue
+        yesterday = datetime.utcnow() - timedelta(days=2)
+        update_task_last_done(task_map["Kitchen"], yesterday)
+        update_task_last_done(task_map["Bathroom"], yesterday)
+
+        # All due tasks
+        all_due = tasks_due_now()
+        assert len(all_due) == 2
+
+        # Kitchen due only
+        kitchen_due = tasks_due_now(room="Kitchen")
+        assert len(kitchen_due) == 1
+        assert kitchen_due[0][4] == "Kitchen"
+
+        # Bathroom due only
+        bathroom_due = tasks_due_now(room="Bathroom")
+        assert len(bathroom_due) == 1
+        assert bathroom_due[0][4] == "Bathroom"
+
+    def test_edit_task_room(self, test_db, monkeypatch):
+        """Test editing a task's room."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, get_task_db, list_tasks_db, update_task_field
+
+        add_task_db("Some task", freq_days=1, room="Kitchen")
+        tasks = list_tasks_db()
+        task_id = tasks[0][0]
+
+        update_task_field(task_id, "room", "Bathroom")
+
+        task = get_task_db(task_id)
+        assert task[4] == "Bathroom"
+
+
 class TestTaskEditing:
     """Tests for task editing functionality."""
 
