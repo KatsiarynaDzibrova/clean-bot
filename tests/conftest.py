@@ -23,7 +23,7 @@ def test_db(monkeypatch):
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             frequency_days INTEGER NOT NULL,
             last_done TEXT NOT NULL,

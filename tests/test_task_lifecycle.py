@@ -170,9 +170,11 @@ class TestMultipleTasks:
         add_task_db("Monthly task", freq_days=30)
 
         tasks = list_tasks_db()
-        daily_id = tasks[0][0]
-        weekly_id = tasks[1][0]
-        monthly_id = tasks[2][0]
+        # Find tasks by name instead of assuming position (IDs are random)
+        task_map = {t[1]: t[0] for t in tasks}  # name -> id
+        daily_id = task_map["Daily task"]
+        weekly_id = task_map["Weekly task"]
+        monthly_id = task_map["Monthly task"]
 
         # Make only daily and weekly tasks overdue
         two_days_ago = datetime.utcnow() - timedelta(days=2)
@@ -204,8 +206,10 @@ class TestMultipleTasks:
         add_task_db("Task B", freq_days=1)
 
         tasks = list_tasks_db()
-        task_a_id = tasks[0][0]
-        task_b_id = tasks[1][0]
+        # Find tasks by name instead of assuming position (IDs are random)
+        task_map = {t[1]: t[0] for t in tasks}  # name -> id
+        task_a_id = task_map["Task A"]
+        task_b_id = task_map["Task B"]
 
         # Make both tasks overdue
         yesterday = datetime.utcnow() - timedelta(days=2)
@@ -315,6 +319,45 @@ class TestFrequencyParsing:
 
         with pytest.raises(ValueError):
             parse_frequency_to_days("")
+
+
+class TestRandomIds:
+    """Tests for random ID generation."""
+
+    def test_random_ids_no_collision(self, test_db, monkeypatch):
+        """Test that multiple tasks get unique random IDs."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, list_tasks_db
+
+        # Create several tasks
+        for i in range(10):
+            add_task_db(f"Task {i}", freq_days=1)
+
+        tasks = list_tasks_db()
+        ids = [t[0] for t in tasks]
+
+        # All IDs should be unique
+        assert len(ids) == len(set(ids))
+        # All IDs should be 3-digit (100-999)
+        assert all(100 <= tid <= 999 for tid in ids)
+
+    def test_error_when_no_unique_id_available(self, test_db, monkeypatch, db_connection):
+        """Test that RuntimeError is raised when no unique ID can be generated."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db
+
+        # Pre-fill database with all possible IDs (100-999)
+        cur = db_connection.cursor()
+        for i in range(100, 1000):
+            cur.execute(
+                "INSERT INTO tasks (id, name, frequency_days, last_done, notes) VALUES (?, ?, ?, ?, ?)",
+                (i, f"Task {i}", 1, "2024-01-01T00:00:00", ""),
+            )
+        db_connection.commit()
+
+        # Attempting to add another task should raise RuntimeError
+        with pytest.raises(RuntimeError, match="Could not generate unique ID"):
+            add_task_db("One more task", freq_days=1)
 
 
 class TestTaskEditing:
