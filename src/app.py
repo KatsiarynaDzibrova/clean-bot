@@ -22,13 +22,15 @@ from telegram.ext import (
     filters,
 )
 
-from .config import TOKEN, ADD_NAME, ADD_FREQ, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID, logger
+from .config import TOKEN, ADD_NAME, ADD_ROOM, ADD_FREQ, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID, logger
 from .database import init_db
 from .handlers import (
     start,
     addtask_start,
     addtask_name,
+    addtask_room,
     addtask_freq,
+    rooms_cmd,
     tasks_cmd,
     due_cmd,
     done_start,
@@ -54,6 +56,7 @@ def main():
 
     # basic commands
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("rooms", rooms_cmd))
     app.add_handler(CommandHandler("tasks", tasks_cmd))
     app.add_handler(CommandHandler("due", due_cmd))
     app.add_handler(CommandHandler("remove", remove_cmd))
@@ -63,6 +66,7 @@ def main():
         entry_points=[CommandHandler("addtask", addtask_start)],
         states={
             ADD_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, addtask_name)],
+            ADD_ROOM: [MessageHandler(filters.TEXT & ~filters.COMMAND, addtask_room)],
             ADD_FREQ: [MessageHandler(filters.TEXT & ~filters.COMMAND, addtask_freq)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],

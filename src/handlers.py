@@ -25,11 +25,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Cleaning Bot — minimal command interface.\n\n"
         "Commands:\n"
         "/addtask - add a task\n"
-        "/tasks   - list all tasks\n"
-        "/due     - show tasks due now\n"
+        "/tasks   - list all tasks (or /tasks <room>)\n"
+        "/due     - show tasks due now (or /due <room>)\n"
         "/done    - mark task done (usage: /done <id> or just /done then send id)\n"
         "/edit    - edit task\n"
         "/remove  - remove task (usage: /remove <id>)\n"
+        "/rooms   - list available rooms\n"
         "/cancel  - cancel current command\n"
     )
     await update.message.reply_text(txt)
@@ -46,6 +47,32 @@ async def addtask_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def addtask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     context.user_data["new_task_name"] = text
+    rooms = get_rooms()
+    if rooms:
+        room_list = ", ".join(rooms)
+        await update.message.reply_text(f"Which room? ({room_list})")
+    else:
+        await update.message.reply_text("Which room?")
+    return ADD_ROOM
+
+
+@restricted
+async def addtask_room(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    room_txt = update.message.text.strip()
+    rooms = get_rooms()
+    # Case-insensitive match
+    matched_room = None
+    for r in rooms:
+        if r.lower() == room_txt.lower():
+            matched_room = r
+            break
+    if rooms and not matched_room:
+        room_list = ", ".join(rooms)
+        await update.message.reply_text(
+            f"Unknown room. Please choose from: {room_list}"
+        )
+        return ADD_ROOM
+    context.user_data["new_task_room"] = matched_room or room_txt
     await update.message.reply_text("How often? (e.g. 3d, 1w, 1m — or number of days)")
     return ADD_FREQ
 
@@ -61,20 +88,51 @@ async def addtask_freq(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     name = context.user_data.get("new_task_name")
-    add_task_db(name, freq_days)
-    await update.message.reply_text(f"Added: {name} — every {freq_days} days.")
+    room = context.user_data.get("new_task_room")
+    add_task_db(name, freq_days, room)
+    await update.message.reply_text(f"Added: {name} — {room} — every {freq_days} days.")
     context.user_data.pop("new_task_name", None)
+    context.user_data.pop("new_task_room", None)
     return ConversationHandler.END
+
+
+# ---- Rooms command ----
+@restricted
+async def rooms_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    rooms = get_rooms()
+    if rooms:
+        lines = ["Available rooms:"]
+        for r in rooms:
+            lines.append(f"• {r}")
+        await update.message.reply_text("\n".join(lines))
+    else:
+        await update.message.reply_text("No rooms configured. Add rooms to rooms.txt")
 
 
 # ---- List tasks ----
 @restricted
 async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rows = list_tasks_db()
+    args = context.args
+    room_filter = None
+    if args:
+        room_arg = " ".join(args)
+        rooms = get_rooms()
+        for r in rooms:
+            if r.lower() == room_arg.lower():
+                room_filter = r
+                break
+        if not room_filter:
+            await update.message.reply_text(f"Unknown room: {room_arg}")
+            return
+    rows = list_tasks_db(room=room_filter)
     if not rows:
-        await update.message.reply_text("No tasks yet. Add one with /addtask")
+        if room_filter:
+            await update.message.reply_text(f"No tasks in {room_filter}.")
+        else:
+            await update.message.reply_text("No tasks yet. Add one with /addtask")
         return
-    lines = ["Your cleaning tasks:"]
+    header = f"Tasks in {room_filter}:" if room_filter else "Your cleaning tasks:"
+    lines = [header]
     for r in rows:
         lines.append(format_task_row(r))
     await update.message.reply_text("\n".join(lines))
@@ -83,13 +141,29 @@ async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- Due tasks ----
 @restricted
 async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    due = tasks_due_now()
+    args = context.args
+    room_filter = None
+    if args:
+        room_arg = " ".join(args)
+        rooms = get_rooms()
+        for r in rooms:
+            if r.lower() == room_arg.lower():
+                room_filter = r
+                break
+        if not room_filter:
+            await update.message.reply_text(f"Unknown room: {room_arg}")
+            return
+    due = tasks_due_now(room=room_filter)
     if not due:
-        await update.message.reply_text("No tasks are due right now. Good job!")
+        if room_filter:
+            await update.message.reply_text(f"No tasks due in {room_filter}. Good job!")
+        else:
+            await update.message.reply_text("No tasks are due right now. Good job!")
         return
-    lines = ["Tasks to do now:"]
-    for tid, name, freq, last_iso, notes, nd in due:
-        lines.append(f"{tid}. {name} — every {freq}d")
+    header = f"Tasks due in {room_filter}:" if room_filter else "Tasks to do now:"
+    lines = [header]
+    for tid, name, freq, last_iso, room, notes, nd in due:
+        lines.append(f"{tid}. {name} — {room} — every {freq}d")
     lines.append("\nMark a task done with /done <id>")
     await update.message.reply_text("\n".join(lines))
 
@@ -192,7 +266,7 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data["edit_id"] = tid
     await update.message.reply_text(
-        "What do you want to edit? Reply with 'name', 'frequency' or 'notes'."
+        "What do you want to edit? Reply with 'name', 'frequency', 'room' or 'notes'."
     )
     return EDIT_FIELD
 
@@ -200,11 +274,19 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @restricted
 async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text.strip().lower()
-    if choice not in ("name", "frequency", "notes"):
-        await update.message.reply_text("Reply with 'name', 'frequency' or 'notes'.")
+    if choice not in ("name", "frequency", "room", "notes"):
+        await update.message.reply_text("Reply with 'name', 'frequency', 'room' or 'notes'.")
         return EDIT_FIELD
     context.user_data["edit_field"] = choice
-    await update.message.reply_text(f"Send the new value for {choice}.")
+    if choice == "room":
+        rooms = get_rooms()
+        if rooms:
+            room_list = ", ".join(rooms)
+            await update.message.reply_text(f"Send the new room ({room_list}).")
+        else:
+            await update.message.reply_text("Send the new room.")
+    else:
+        await update.message.reply_text(f"Send the new value for {choice}.")
     return EDIT_NEWVAL
 
 
@@ -223,6 +305,19 @@ async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
         update_task_field(tid, "frequency_days", freq_days)
         await update.message.reply_text(f"Updated frequency to every {freq_days} days.")
+    elif field == "room":
+        rooms = get_rooms()
+        matched_room = None
+        for r in rooms:
+            if r.lower() == newval.lower():
+                matched_room = r
+                break
+        if rooms and not matched_room:
+            room_list = ", ".join(rooms)
+            await update.message.reply_text(f"Unknown room. Choose from: {room_list}")
+            return EDIT_NEWVAL
+        update_task_field(tid, "room", matched_room or newval)
+        await update.message.reply_text(f"Updated room to {matched_room or newval}.")
     else:
         db_field = "name" if field == "name" else "notes"
         update_task_field(tid, db_field, newval)
