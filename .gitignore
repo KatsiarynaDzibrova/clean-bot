@@ -1,2 +1,8 @@
 .env
 .venv
+venv
+env
+.idea
+tasks.db
+.claude
+__pycache__/
