@@ -131,10 +131,25 @@ async def tasks_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("No tasks yet. Add one with /addtask")
         return
-    header = f"Tasks in {room_filter}:" if room_filter else "Your cleaning tasks:"
-    lines = [header]
-    for r in rows:
-        lines.append(format_task_row(r, show_room=not room_filter))
+
+    if room_filter:
+        # Single room - simple list
+        lines = [f"Tasks in {room_filter}:"]
+        for r in rows:
+            lines.append(format_task_row(r))
+    else:
+        # All rooms - group by room
+        lines = ["Your cleaning tasks:"]
+        tasks_by_room = {}
+        for r in rows:
+            room = r[4]
+            if room not in tasks_by_room:
+                tasks_by_room[room] = []
+            tasks_by_room[room].append(r)
+        for room in tasks_by_room:
+            lines.append(f"\n{room}:")
+            for r in tasks_by_room[room]:
+                lines.append(format_task_row(r))
     await update.message.reply_text("\n".join(lines))
 
 
