@@ -28,7 +28,28 @@ def test_db(monkeypatch):
             frequency_days INTEGER NOT NULL,
             last_done TEXT NOT NULL,
             room TEXT NOT NULL,
-            notes TEXT
+            notes TEXT,
+            points INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS completed_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            task_id INTEGER NOT NULL,
+            task_name TEXT NOT NULL,
+            points_earned INTEGER NOT NULL,
+            completed_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bot_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
         )
         """
     )

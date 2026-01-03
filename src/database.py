@@ -23,22 +23,55 @@ def _generate_unique_id() -> int:
 
 
 def init_db():
-    """Create the tasks table if it doesn't exist."""
+    """Create the tables if they don't exist."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute(
         """
-    CREATE TABLE IF NOT EXISTS tasks (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        frequency_days INTEGER NOT NULL,
-        last_done TEXT NOT NULL,
-        room TEXT NOT NULL,
-        notes TEXT
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            frequency_days INTEGER NOT NULL,
+            last_done TEXT NOT NULL,
+            room TEXT NOT NULL,
+            notes TEXT,
+            points INTEGER NOT NULL DEFAULT 1
+        )
+        """
     )
-    """
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS completed_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            task_id INTEGER NOT NULL,
+            task_name TEXT NOT NULL,
+            points_earned INTEGER NOT NULL,
+            completed_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS bot_config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """
     )
     conn.commit()
+    conn.close()
+
+
+def migrate_db():
+    """Add points column to existing tasks table if missing."""
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(tasks)")
+    columns = [col[1] for col in cur.fetchall()]
+    if "points" not in columns:
+        cur.execute("ALTER TABLE tasks ADD COLUMN points INTEGER NOT NULL DEFAULT 1")
+        conn.commit()
     conn.close()
 
 
