@@ -1,6 +1,6 @@
 """Telegram bot command handlers."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
@@ -15,6 +15,7 @@ from .database import (
     remove_task_db,
     record_task_completion,
     save_chat_id,
+    get_weekly_points,
 )
 from .utils import parse_frequency_to_days, tasks_due_now, format_task_row
 from .decorators import restricted
@@ -33,6 +34,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/edit    - edit task\n"
         "/remove  - remove task (usage: /remove <id>)\n"
         "/rooms   - list available rooms\n"
+        "/stats   - show points leaderboard\n"
         "/cancel  - cancel current command\n"
     )
     await update.message.reply_text(txt)
@@ -132,6 +134,22 @@ async def rooms_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("\n".join(lines))
     else:
         await update.message.reply_text("No rooms configured. Add rooms to rooms.txt")
+
+
+# ---- Stats command ----
+@restricted
+async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show points leaderboard for the last week."""
+    save_chat_id(update.effective_chat.id)
+    week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    weekly = get_weekly_points(week_ago)
+    if not weekly:
+        await update.message.reply_text("No tasks completed this week yet.")
+        return
+    lines = ["Points this week:"]
+    for username, points in weekly:
+        lines.append(f"  @{username}: {points} pts")
+    await update.message.reply_text("\n".join(lines))
 
 
 # ---- List tasks ----
