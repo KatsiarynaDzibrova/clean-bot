@@ -12,7 +12,8 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "<PASTE_YOUR_TOKEN_HERE>"
 if not TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN not found. Please set it in your .env file.")
 
-DB_PATH = "tasks.db"
+BASE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir)
+DB_PATH = os.path.join(BASE_DIR, "tasks.db")
 ROOMS_PATH = Path(__file__).parent.parent / "rooms.txt"
 
 
