@@ -5,7 +5,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
-from .config import ADD_NAME, ADD_ROOM, ADD_FREQ, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID, get_rooms
+from .config import ADD_NAME, ADD_ROOM, ADD_FREQ, ADD_POINTS, EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL, DONE_WAIT_ID, get_rooms
 from .database import (
     add_task_db,
     list_tasks_db,
@@ -87,12 +87,35 @@ async def addtask_freq(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "I couldn't parse that. Use examples like '3d', '1w', '1m' or '7'. Try /addtask again."
         )
         return ConversationHandler.END
+    context.user_data["new_task_freq"] = freq_days
+    await update.message.reply_text(
+        "How many points? (1-3)\n1 = Easy, 2 = Medium, 3 = Hard"
+    )
+    return ADD_POINTS
+
+
+@restricted
+async def addtask_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    points_txt = update.message.text.strip()
+    try:
+        points = int(points_txt)
+        if not 1 <= points <= 3:
+            raise ValueError("Points must be 1-3")
+    except ValueError:
+        await update.message.reply_text(
+            "Please enter 1, 2, or 3. Try /addtask again."
+        )
+        return ConversationHandler.END
     name = context.user_data.get("new_task_name")
     room = context.user_data.get("new_task_room")
-    add_task_db(name, freq_days, room)
-    await update.message.reply_text(f"Added: {name} — {room} — every {freq_days} days.")
+    freq_days = context.user_data.get("new_task_freq")
+    add_task_db(name, freq_days, room, points=points)
+    await update.message.reply_text(
+        f"Added: {name} ({points}pt{'s' if points > 1 else ''}) — {room} — every {freq_days} days."
+    )
     context.user_data.pop("new_task_name", None)
     context.user_data.pop("new_task_room", None)
+    context.user_data.pop("new_task_freq", None)
     return ConversationHandler.END
 
 
@@ -177,8 +200,9 @@ async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     header = f"Tasks due in {room_filter}:" if room_filter else "Tasks to do now:"
     lines = [header]
-    for tid, name, freq, last_iso, room, notes, nd in due:
-        lines.append(f"{tid}. {name} — {room} — every {freq}d")
+    for tid, name, freq, last_iso, room, notes, points, nd in due:
+        pts_str = f"({points}pt)" if points == 1 else f"({points}pts)"
+        lines.append(f"{tid}. {name} {pts_str} — {room} — every {freq}d")
     lines.append("\nMark a task done with /done <id>")
     await update.message.reply_text("\n".join(lines))
 
