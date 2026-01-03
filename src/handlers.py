@@ -336,7 +336,7 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     context.user_data["edit_id"] = tid
     await update.message.reply_text(
-        "What do you want to edit? Reply with 'name', 'frequency', 'room' or 'notes'."
+        "What do you want to edit? Reply with 'name', 'frequency', 'room', 'notes' or 'points'."
     )
     return EDIT_FIELD
 
@@ -344,8 +344,8 @@ async def edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @restricted
 async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
     choice = update.message.text.strip().lower()
-    if choice not in ("name", "frequency", "room", "notes"):
-        await update.message.reply_text("Reply with 'name', 'frequency', 'room' or 'notes'.")
+    if choice not in ("name", "frequency", "room", "notes", "points"):
+        await update.message.reply_text("Reply with 'name', 'frequency', 'room', 'notes' or 'points'.")
         return EDIT_FIELD
     context.user_data["edit_field"] = choice
     if choice == "room":
@@ -355,6 +355,8 @@ async def edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"Send the new room ({room_list}).")
         else:
             await update.message.reply_text("Send the new room.")
+    elif choice == "points":
+        await update.message.reply_text("Send the new points value (1-3).")
     else:
         await update.message.reply_text(f"Send the new value for {choice}.")
     return EDIT_NEWVAL
@@ -388,6 +390,16 @@ async def edit_newval(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return EDIT_NEWVAL
         update_task_field(tid, "room", matched_room or newval)
         await update.message.reply_text(f"Updated room to {matched_room or newval}.")
+    elif field == "points":
+        try:
+            points = int(newval)
+            if not 1 <= points <= 3:
+                raise ValueError("Points must be 1-3")
+        except ValueError:
+            await update.message.reply_text("Points must be 1, 2, or 3.")
+            return ConversationHandler.END
+        update_task_field(tid, "points", points)
+        await update.message.reply_text(f"Updated points to {points}.")
     else:
         db_field = "name" if field == "name" else "notes"
         update_task_field(tid, db_field, newval)
