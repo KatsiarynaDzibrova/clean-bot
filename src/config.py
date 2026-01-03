@@ -32,6 +32,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Conversation states
-ADD_NAME, ADD_ROOM, ADD_FREQ = range(3)
+ADD_NAME, ADD_ROOM, ADD_FREQ, ADD_POINTS = range(4)
 EDIT_SELECT, EDIT_FIELD, EDIT_NEWVAL = range(3)
 DONE_WAIT_ID = range(1)
