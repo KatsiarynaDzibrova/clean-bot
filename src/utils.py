@@ -59,17 +59,18 @@ def tasks_due_now(room: str = None):
     now = datetime.utcnow()
     due = []
     for row in list_tasks_db(room=room):
-        tid, name, freq, last_iso, task_room, notes = row
+        tid, name, freq, last_iso, task_room, notes, points = row
         nd, nd_text = next_due_text(last_iso, freq)
         if nd <= now:
-            due.append((tid, name, freq, last_iso, task_room, notes, nd))
+            due.append((tid, name, freq, last_iso, task_room, notes, points, nd))
     return due
 
 
 def format_task_row(row):
     """Format a task row for display."""
-    tid, name, freq, last_iso, room, notes = row
+    tid, name, freq, last_iso, room, notes, points = row
     nd, nd_text = next_due_text(last_iso, freq)
-    return f"{tid}. {name} — every {freq}d — due: {nd_text}" + (
+    pts_str = f" ({points}pt)" if points == 1 else f" ({points}pts)"
+    return f"{tid}. {name}{pts_str} — every {freq}d — due: {nd_text}" + (
         f" — {notes}" if notes else ""
     )

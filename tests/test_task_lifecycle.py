@@ -26,11 +26,12 @@ class TestTaskLifecycle:
         assert len(tasks) == 1
 
         task = tasks[0]
-        tid, name, freq, last_done, room, notes = task
+        tid, name, freq, last_done, room, notes, points = task
         assert name == "Clean bathroom"
         assert freq == 1
         assert room == "Bathroom"
         assert notes == "Daily cleaning"
+        assert points == 1  # default
 
         # Verify we can get task by ID
         task_by_id = get_task_db(tid)
@@ -351,8 +352,8 @@ class TestRandomIds:
         cur = db_connection.cursor()
         for i in range(100, 1000):
             cur.execute(
-                "INSERT INTO tasks (id, name, frequency_days, last_done, room, notes) VALUES (?, ?, ?, ?, ?, ?)",
-                (i, f"Task {i}", 1, "2024-01-01T00:00:00", "Kitchen", ""),
+                "INSERT INTO tasks (id, name, frequency_days, last_done, room, notes, points) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (i, f"Task {i}", 1, "2024-01-01T00:00:00", "Kitchen", "", 1),
             )
         db_connection.commit()
 
@@ -374,7 +375,7 @@ class TestRooms:
         assert len(tasks) == 1
 
         task = tasks[0]
-        tid, name, freq, last_done, room, notes = task
+        tid, name, freq, last_done, room, notes, points = task
         assert room == "Kitchen"
 
     def test_filter_tasks_by_room(self, test_db, monkeypatch):
