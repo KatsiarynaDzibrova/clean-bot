@@ -508,3 +508,102 @@ class TestTaskEditing:
 
         with pytest.raises(ValueError):
             update_task_field(task_id, "invalid_field", "value")
+
+
+class TestPointsSystem:
+    """Tests for the points/difficulty system."""
+
+    def test_create_task_with_points(self, test_db, monkeypatch):
+        """Test that tasks can be created with custom points."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, list_tasks_db
+
+        add_task_db("Hard task", freq_days=7, room="Kitchen", points=3)
+        tasks = list_tasks_db()
+        assert len(tasks) == 1
+        assert tasks[0][6] == 3  # points is index 6
+
+    def test_default_points_is_one(self, test_db, monkeypatch):
+        """Test that default points value is 1."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, list_tasks_db
+
+        add_task_db("Easy task", freq_days=1, room="Kitchen")
+        tasks = list_tasks_db()
+        assert tasks[0][6] == 1
+
+    def test_record_task_completion(self, test_db, monkeypatch):
+        """Test recording task completion for points tracking."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import record_task_completion, get_weekly_points
+
+        record_task_completion("alice", 123, "Clean sink", 3)
+        record_task_completion("bob", 456, "Vacuum", 2)
+        record_task_completion("alice", 789, "Mop floor", 1)
+
+        week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        weekly = get_weekly_points(week_ago)
+
+        assert len(weekly) == 2
+        points_by_user = {u: p for u, p in weekly}
+        assert points_by_user["alice"] == 4  # 3 + 1
+        assert points_by_user["bob"] == 2
+
+    def test_weekly_points_filters_old_completions(self, test_db, monkeypatch):
+        """Test that get_weekly_points only returns recent completions."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import get_weekly_points
+        import sqlite3
+
+        # Insert an old completion directly (8 days ago)
+        conn = sqlite3.connect(test_db)
+        cur = conn.cursor()
+        old_date = (datetime.utcnow() - timedelta(days=8)).isoformat()
+        cur.execute(
+            "INSERT INTO completed_tasks (username, task_id, task_name, points_earned, completed_at) VALUES (?, ?, ?, ?, ?)",
+            ("olduser", 100, "Old task", 5, old_date),
+        )
+        # Insert a recent completion
+        recent_date = datetime.utcnow().isoformat()
+        cur.execute(
+            "INSERT INTO completed_tasks (username, task_id, task_name, points_earned, completed_at) VALUES (?, ?, ?, ?, ?)",
+            ("newuser", 101, "New task", 2, recent_date),
+        )
+        conn.commit()
+        conn.close()
+
+        week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        weekly = get_weekly_points(week_ago)
+
+        assert len(weekly) == 1
+        assert weekly[0][0] == "newuser"
+        assert weekly[0][1] == 2
+
+    def test_edit_task_points(self, test_db, monkeypatch):
+        """Test editing a task's points."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import add_task_db, get_task_db, list_tasks_db, update_task_field
+
+        add_task_db("Task", freq_days=1, room="Kitchen", points=1)
+        tasks = list_tasks_db()
+        task_id = tasks[0][0]
+
+        update_task_field(task_id, "points", 3)
+        task = get_task_db(task_id)
+        assert task[6] == 3
+
+    def test_save_and_get_chat_id(self, test_db, monkeypatch):
+        """Test saving and retrieving chat ID."""
+        monkeypatch.setattr("src.database.DB_PATH", test_db)
+        from src.database import save_chat_id, get_chat_id
+
+        # Initially no chat_id
+        assert get_chat_id() is None
+
+        # Save and retrieve
+        save_chat_id(123456789)
+        assert get_chat_id() == 123456789
+
+        # Overwrite
+        save_chat_id(987654321)
+        assert get_chat_id() == 987654321
