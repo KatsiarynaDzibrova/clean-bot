@@ -13,6 +13,8 @@ from .database import (
     update_task_last_done,
     update_task_field,
     remove_task_db,
+    record_task_completion,
+    save_chat_id,
 )
 from .utils import parse_frequency_to_days, tasks_due_now, format_task_row
 from .decorators import restricted
@@ -210,6 +212,7 @@ async def due_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ---- Done command ----
 @restricted
 async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    save_chat_id(update.effective_chat.id)
     args = context.args
     if args:
         try:
@@ -221,9 +224,14 @@ async def done_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not row:
             await update.message.reply_text(f"No task with id {tid}.")
             return
+        # Record points for user
+        username = update.effective_user.username or update.effective_user.first_name or "unknown"
+        task_name, points = row[1], row[6]
+        record_task_completion(username, tid, task_name, points)
         update_task_last_done(tid, datetime.utcnow())
+        pts_str = "pt" if points == 1 else "pts"
         await update.message.reply_text(
-            f"Marked done: {row[1]}. Next due in {row[2]} days."
+            f"Marked done: {task_name}. +{points}{pts_str}! Next due in {row[2]} days."
         )
         return
     # else ask for id
@@ -250,9 +258,14 @@ async def done_receive_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not row:
         await update.message.reply_text(f"No task with id {tid}.")
         return ConversationHandler.END
+    # Record points for user
+    username = update.effective_user.username or update.effective_user.first_name or "unknown"
+    task_name, points = row[1], row[6]
+    record_task_completion(username, tid, task_name, points)
     update_task_last_done(tid, datetime.utcnow())
+    pts_str = "pt" if points == 1 else "pts"
     await update.message.reply_text(
-        f"Marked done: {row[1]}. Next due in {row[2]} days."
+        f"Marked done: {task_name}. +{points}{pts_str}! Next due in {row[2]} days."
     )
     return ConversationHandler.END
 
